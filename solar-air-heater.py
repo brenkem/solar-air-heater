@@ -3,12 +3,10 @@
 import RPi.GPIO as GPIO
 from time import sleep             # lets us have a delay
 
-# 900
-# 1800
+# power levels
 L1000 = 900  # power of 1000 W mode
 L2000 = 1800 # power of 2000 W mode
-
-LT = 1600 # trigger power off heater
+LT = 1600    # trigger to detect "PHASE"
 
 # GPIOs
 REL1 = 2 # Relais to power fan and 1000 W heat
@@ -99,13 +97,21 @@ def detect_static_power_consumption(cycles, limit):
   return True
 
 def detect_PHASE():
+  k = int(0)
   LC = int(0)
 
   while LC == 0:
+    k = 0;
+    LC = 0;
+
+    # check if data are valid
+    while read_power(power_old) != True:
+      continue
+
     # save power and start heater and wait 2 cycles
     GPIO.output(REL1, GPIO.LOW)
     GPIO.output(REL2, GPIO.LOW)
-    sleep(DATA_CYCLE * 2)
+    sleep(DATA_CYCLE * 3)
 
     # check if data are valid
     while read_power(power) != True:
@@ -119,24 +125,36 @@ def detect_PHASE():
     GPIO.output(REL2, GPIO.HIGH)
 
     # detect connected "PHASE"
-    for i in range(L1, L3+1): # from L1 to L3
+    for i in range(L1, L3 + 1): # from L1 to L3
+      if power_diff[i] < 0:
+        continue
       if power_diff[i] > LT: # check trigger to detect "PHASE"
+        k =+ 1;
         LC = i;
-        print("PHASE auf %i" % LC);
-        return LC
+
+    if k == 1:
+      print("PHASE auf %i" % LC);
+      return LC
 
     print("Failed to detect PHASE. Try again.")
     sleep(10)
+
+def switch_heater_off():
+  GPIO.output(REL1, GPIO.HIGH) # deactivate GPIO for Relais 1
+  GPIO.output(REL2, GPIO.HIGH) # deactivate GPIO for Relais 2
+  print("switch off heater")
 
 
 # dectect PHASE
 ## check for static power consumption
 try:
   i = int(0)
+  STAT_1000 = False
+  STAT_2000 = False
 
   # check if power consumption is in the defines limit for defines cycles
-#  detect_static_power_consumption(5, 20) # 20 Watt
-  detect_static_power_consumption(1, 20) # 20 Watt
+  detect_static_power_consumption(5, 20) # 20 Watt
+#  detect_static_power_consumption(1, 20) # 20 Watt
 
   # detect the 1 "PHASE" of the 3 house "PHASEN"
   LC = detect_PHASE()
@@ -145,21 +163,30 @@ try:
 
   while True:
     # check Thermostat and wait for cooler times
-    if GPIO.input(TST1) == ??????
-      sleep 30
+    if GPIO.input(TST1):
+      switch_heater_off()
+      STAT_1000 = False
+      print("heisz genug, wait")
+      sleep(30)
       continue
 
     # create copy of data set
     power_old = power[:]
 
+#    print("old %i" % power[LC])
+
     # check if data are valid
     if read_power(power) != True:
       continue
 
+#    print("new %i)" % power_old[LC])
+
+    # check if data stays the same for to long
+    i = 0
     while power == power_old:
       if i > 5:
-        i = 0
-        continue
+        switch_heater_off()
+        STAT_1000 = False
       i += 1
       # check if data are valid
       if read_power(power) != True:
@@ -167,26 +194,30 @@ try:
 
     print(power[LC])
 
-    if power[LC] >= ((L1000 * 6) / 5): # 120 %
+    if (not STAT_1000) and (power[LC] <= ((L1000 * (-6)) / 5)): # 120 % Einspeiung
+#    if (not STAT_1000) and (power[LC] <= (-500)): # 120 % Einspeiung
       print("activate 1000 W heating modus")
       GPIO.output(REL1, GPIO.LOW)
+      STAT_1000 = True
+    elif STAT_1000 and (power[LC] >= ((L1000 * (-1)) / 5)): # 20 % Reserve
+#    elif STAT_1000 and (power[LC] > (400)): # 20 % Reserve
+      print("deactivate 1000 W heating modus")
+      GPIO.output(REL1, GPIO.HIGH)
+      STAT_1000 = False
 
-    if power[LC] >= ((L2000 * 6) / 5): # 120 %
+    if (not STAT_2000) and (power[LC] <= ((L2000 * (-6)) / 5)): # 120 % Einspeiung
       print("activate 2000 W heating modus")
       GPIO.output(REL2, GPIO.LOW)
+      STAT_2000 = True
+    elif STAT_2000 and (power[LC] >= ((L2000 * (-1)) / 5)): # 20 % Reserve
+      print("deactivate 2000 W heating modus")
+      GPIO.output(REL2, GPIO.HIGH)
+      STAT_2000 = False
 
     print("")
-    sleep(DATA_CYCLE)            # wait a second
+    sleep(DATA_CYCLE)
 
-
-#    GPIO.output(REL1, GPIO.LOW)  # set GPIO for Relais 1
-#    GPIO.output(REL2, GPIO.HIGH) # deactivate GPIO for Relais 2
-#    sleep(DATA_CYCLE)            # wait a second
-#    GPIO.output(REL1, GPIO.HIGH) # deactivate GPIO for Relais 1
-#    GPIO.output(REL2, GPIO.LOW)  # set GPIO for Relais 2
-#    sleep(DATA_CYCLE)            # wait a second
 
 except KeyboardInterrupt:      # trap a CTRL+C keyboard interrupt
-  GPIO.output(REL1, GPIO.HIGH) # deactivate GPIO for Relais 1
-  GPIO.output(REL2, GPIO.HIGH) # deactivate GPIO for Relais 2
+  switch_heater_off()
 #  GPIO.cleanup()               # resets all GPIO ports used by this program
