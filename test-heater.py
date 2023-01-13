@@ -20,7 +20,7 @@ GPIO.output(REL2, GPIO.HIGH) # deactivate GPIO for Relais 2
 try:
   GPIO.output(REL1, GPIO.LOW)  # set GPIO for Relais 1
 #  GPIO.output(REL2, GPIO.LOW)  # set GPIO for Relais 2
-  sleep(10)                    # wait a second
+  sleep(5)                    # wait a second
   GPIO.output(REL1, GPIO.HIGH) # deactivate GPIO for Relais 1
 #  GPIO.output(REL2, GPIO.HIGH) # deactivate GPIO for Relais 2
   GPIO.cleanup()               # resets all GPIO ports

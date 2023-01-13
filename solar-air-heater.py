@@ -2,6 +2,18 @@
 
 import RPi.GPIO as GPIO
 from time import sleep             # lets us have a delay
+import logging
+from systemd.journal import JournaldLogHandler
+
+
+logger = logging.getLogger(__name__)
+journald_handler = JournaldLogHandler()
+journald_handler.setFormatter(logging.Formatter(
+    '[%(levelname)s] %(message)s'
+))
+logger.addHandler(journald_handler)
+logger.setLevel(logging.INFO)
+#logger.setLevel(logging.DEBUG)
 
 # power levels
 L1000 = 900  # power of 1000 W mode
@@ -133,6 +145,7 @@ def detect_PHASE():
         LC = i;
 
     if k == 1:
+      logger.info("PHASE auf %i" % LC);
       print("PHASE auf %i" % LC);
       return LC
 
@@ -142,6 +155,7 @@ def detect_PHASE():
 def switch_heater_off():
   GPIO.output(REL1, GPIO.HIGH) # deactivate GPIO for Relais 1
   GPIO.output(REL2, GPIO.HIGH) # deactivate GPIO for Relais 2
+  sleep(DATA_CYCLE)
   print("switch off heater")
 
 
@@ -153,12 +167,13 @@ try:
   STAT_2000 = False
 
   # check if power consumption is in the defines limit for defines cycles
-  detect_static_power_consumption(5, 20) # 20 Watt
+  detect_static_power_consumption(5, 50) # 50 Watt
 #  detect_static_power_consumption(1, 20) # 20 Watt
 
   # detect the 1 "PHASE" of the 3 house "PHASEN"
   LC = detect_PHASE()
   sleep(DATA_CYCLE * 2)
+  logger.info("--- START to check PH %i for energie exceeds ---" % LC)
   print("--- START to check PH %i for energie exceeds ---" % LC)
 
   while True:
@@ -195,12 +210,12 @@ try:
     print(power[LC])
 
     if (not STAT_1000) and (power[LC] <= ((L1000 * (-6)) / 5)): # 120 % Einspeiung
-#    if (not STAT_1000) and (power[LC] <= (-500)): # 120 % Einspeiung
+#    if (not STAT_1000) and (power[LC] <= (600)): # 120 % Einspeiung
       print("activate 1000 W heating modus")
       GPIO.output(REL1, GPIO.LOW)
       STAT_1000 = True
     elif STAT_1000 and (power[LC] >= ((L1000 * (-1)) / 5)): # 20 % Reserve
-#    elif STAT_1000 and (power[LC] > (400)): # 20 % Reserve
+#    elif STAT_1000 and (power[LC] > (1500)): # 20 % Reserve
       print("deactivate 1000 W heating modus")
       GPIO.output(REL1, GPIO.HIGH)
       STAT_1000 = False
@@ -216,7 +231,6 @@ try:
 
     print("")
     sleep(DATA_CYCLE)
-
 
 except KeyboardInterrupt:      # trap a CTRL+C keyboard interrupt
   switch_heater_off()

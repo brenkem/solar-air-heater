@@ -1,0 +1,11 @@
+[Unit]
+Description=solar-air-heater as system service
+After=network-online.target systemd-networkd-wait-online.service nfs-client.target remote-fs.target
+Wants=systemd-networkd-wait-online.service nfs-client.target
+
+[Service]
+ExecStart=python /root/git/solar-air-heater/solar-air-heater.py
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
