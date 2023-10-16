@@ -4,7 +4,8 @@ After=network-online.target systemd-networkd-wait-online.service nfs-client.targ
 Wants=systemd-networkd-wait-online.service nfs-client.target
 
 [Service]
-ExecStart=python /root/git/solar-air-heater/solar-air-heater.py
+#ExecStart=python /root/git/solar-air-heater/solar-air-heater.py
+ExecStart=python /root/git/solar-air-heater/fullsolar2heat.py
 KillSignal=SIGINT
 
 [Install]

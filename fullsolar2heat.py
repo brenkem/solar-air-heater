@@ -18,7 +18,7 @@ logger.setLevel(logging.INFO)
 # power levels
 L1000 = 900  # power of 1000 W mode
 L2000 = 1800 # power of 2000 W mode
-LT = 1600    # trigger power level to detect "PHASE"
+LT = 1600    # trigger to detect "PHASE"
 
 # GPIOs
 REL1 = 2 # Relais to power fan and 1000 W heat
@@ -36,7 +36,8 @@ power_old  = power[:]
 power_diff = power[:]
 
 ## array strcture
-LC = int(); # connected "PHASE"
+#LC = int(); # connected "PHASE"
+LC = 0; # default to LG
 LG = 0;
 L1 = 1;
 L2 = 2;
@@ -108,50 +109,6 @@ def detect_static_power_consumption(cycles, limit):
     sleep(DATA_CYCLE)            # wait a second
   return True
 
-def detect_PHASE():
-  k = int(0)
-  LC = int(0)
-
-  while LC == 0:
-    k = 0;
-    LC = 0;
-
-    # check if data are valid
-    while read_power(power_old) != True:
-      continue
-
-    # save power and start heater and wait 2 cycles
-    GPIO.output(REL1, GPIO.LOW)
-    GPIO.output(REL2, GPIO.LOW)
-    sleep(DATA_CYCLE * 3)
-
-    # check if data are valid
-    while read_power(power) != True:
-      continue
-
-    calc_diff_power(power_diff, power, power_old)
-    print(power_diff)
-
-    # deactivate heating
-    GPIO.output(REL1, GPIO.HIGH)
-    GPIO.output(REL2, GPIO.HIGH)
-
-    # detect connected "PHASE"
-    for i in range(L1, L3 + 1): # from L1 to L3
-      if power_diff[i] < 0:
-        continue
-      if power_diff[i] > LT: # check trigger to detect "PHASE"
-        k =+ 1;
-        LC = i;
-
-    if k == 1:
-      logger.info("PHASE auf %i" % LC);
-      print("PHASE auf %i" % LC);
-      return LC
-
-    print("Failed to detect PHASE. Try again.")
-    sleep(10)
-
 def switch_heater_off():
   GPIO.output(REL1, GPIO.HIGH) # deactivate GPIO for Relais 1
   GPIO.output(REL2, GPIO.HIGH) # deactivate GPIO for Relais 2
@@ -159,23 +116,17 @@ def switch_heater_off():
   print("switch off heater")
 
 
-#---------------------------- main ----------------------------
-# dectect PHASE
+# ------------------------- main -------------------------------------
 ## check for static power consumption
 try:
   i = int(0)
   STAT_1000 = False
   STAT_2000 = False
 
-  # check if power consumption is in the defines limit for defines cycles
-  detect_static_power_consumption(5, 50) # 50 Watt
-#  detect_static_power_consumption(1, 20) # 20 Watt
-
-  # detect the 1 "PHASE" of the 3 house "PHASEN"
-  LC = detect_PHASE()
-  sleep(DATA_CYCLE * 2)
-  logger.info("--- START to check PH %i for energie exceeds ---" % LC)
-  print("--- START to check PH %i for energie exceeds ---" % LC)
+  # only check summerized power consumption
+  LC = 0; # LG by default
+  logger.info("--- START to check overall power for energie exceeds ---")
+  print("--- START to check overall power for energie exceeds ---")
 
   while True:
     # check Thermostat and wait for cooler times
@@ -189,18 +140,17 @@ try:
     # create copy of data set
     power_old = power[:]
 
-#    print("old %i" % power[LC])
-
+    print("old %i" % power[LC])
+#######
     # check if data are valid
     if read_power(power) != True:
       continue
 
-#    print("new %i)" % power_old[LC])
-
-    # check if data stays the same for to long
+    print("new %i" % power_old[LC])
+#######
+    # check if data stays the same for too long
     i = 0
     while power == power_old:
-    #while power.__eq__(power_old):
       if i > 5:
         print("received to often the same data structure")
         switch_heater_off()
@@ -234,7 +184,7 @@ try:
       GPIO.output(REL2, GPIO.HIGH)
       STAT_2000 = False
 
-    # check to heat if nothing is on
+    # check to heat to activate only fan and 1k heater
     if (not STAT_1000) and (power[LC] <= ((L1000 * (-13)) / 10)): # 130 % Einspeiung
       print("activate 1000 W heating modus")
       GPIO.output(REL1, GPIO.LOW)
@@ -246,6 +196,7 @@ try:
 
 
     print("")
+#######
     sleep(DATA_CYCLE)
 
 except KeyboardInterrupt:      # trap a CTRL+C keyboard interrupt
